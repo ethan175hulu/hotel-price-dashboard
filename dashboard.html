@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>酒店竞对监控系统 - 数据看板</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background-color: #f3f4f6; }
+        .card { background: white; border-radius: 0.75rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1); transition: all 0.3s ease; }
+        .card:hover { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .drop-zone { border: 2px dashed #d1d5db; transition: all 0.3s ease; }
+        .drop-zone:hover, .drop-zone.dragover { border-color: #3b82f6; background-color: #eff6ff; }
+    </style>
+</head>
+<body class="text-gray-800 min-h-screen">
+
+    <!-- 顶部导航 -->
+    <nav class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 flex items-center gap-2">
+                        <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                        <span class="font-bold text-xl text-gray-900">酒店竞对监控系统</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="text-sm text-gray-500 hidden md:block">
+                        目标酒店：<span id="targetHotelName" class="font-semibold text-gray-800">-</span>
+                    </div>
+                    <div class="text-sm text-gray-500 hidden md:block">
+                        数据时间：<span id="dataTime" class="font-medium">-</span>
+                    </div>
+                    <div class="flex items-center gap-2 text-sm text-gray-600">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                        </svg>
+                        <span id="currentUser">用户</span>
+                    </div>
+                    <button id="logoutBtn" class="text-gray-500 hover:text-gray-700 text-sm">退出</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- 上传区域 -->
+        <section id="uploadSection">
+            <div class="card p-8 max-w-2xl mx-auto">
+                <h2 class="text-xl font-semibold text-gray-900 mb-6 text-center">上传竞对数据文件</h2>
+                
+                <div id="dropZone" class="drop-zone rounded-xl p-12 text-center cursor-pointer">
+                    <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    <p class="text-gray-600 mb-2">拖拽文件到此处，或点击选择文件</p>
+                    <p class="text-sm text-gray-400">支持 .xlsx, .xlsm, .xls 格式</p>
+                    <p id="uploadedFileName" class="hidden mt-4 text-blue-600 font-medium"></p>
+                </div>
+                
+                <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xls" class="hidden">
+                
+                <div id="errorMessage" class="hidden mt-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm"></div>
+                
+                <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+                    <h3 class="font-medium text-gray-700 mb-2">数据格式要求</h3>
+                    <ul class="text-sm text-gray-500 space-y-1">
+                        <li>• Sheet名称：<code class="bg-gray-200 px-1 rounded">酒店信息</code></li>
+                        <li>• A列：酒店名称 | B列：抓取日期 | E列：价格 | H列：抓取时间</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- 数据展示区域 -->
+        <section id="dataSection" class="hidden">
+            
+            <div class="mb-6 flex justify-end">
+                <button onclick="resetUpload()" class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                    </svg>
+                    重新上传
+                </button>
+            </div>
+
+            <!-- 关键指标概览 -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="card p-6 border-l-4 border-blue-500">
+                    <div class="text-sm font-medium text-gray-500 uppercase tracking-wider">平均房价</div>
+                    <div class="mt-2"><span id="avgPrice" class="text-3xl font-bold text-gray-900">-</span></div>
+                    <div id="marketPrice" class="mt-2 text-sm text-gray-600">市场均价: -</div>
+                </div>
+                
+                <div class="card p-6 border-l-4 border-purple-500">
+                    <div class="text-sm font-medium text-gray-500 uppercase tracking-wider">平均排名</div>
+                    <div class="mt-2"><span id="avgRank" class="text-3xl font-bold text-gray-900">-</span></div>
+                    <div id="rankRange" class="mt-2 text-sm text-gray-600">最高: - | 最低: -</div>
+                </div>
+
+                <div class="card p-6 border-l-4 border-green-500">
+                    <div class="text-sm font-medium text-gray-500 uppercase tracking-wider">价格竞争力</div>
+                    <div class="mt-2"><span id="competitiveness" class="text-2xl font-bold text-green-600">-</span></div>
+                    <div id="competitiveDetail" class="mt-2 text-sm text-gray-600">-</div>
+                </div>
+
+                <div class="card p-6 border-l-4 border-yellow-500">
+                    <div class="text-sm font-medium text-gray-500 uppercase tracking-wider">监控日期范围</div>
+                    <div class="mt-2"><span id="dateRange" class="text-xl font-bold text-gray-900">-</span></div>
+                    <div id="totalDays" class="mt-2 text-sm text-gray-600">-</div>
+                </div>
+            </div>
+
+            <!-- 图表区域 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <div class="card p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">📈 价格走势对比</h3>
+                    <div class="h-72"><canvas id="priceChart"></canvas></div>
+                </div>
+                <div class="card p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">📊 排名波动趋势</h3>
+                    <div class="h-72"><canvas id="rankChart"></canvas></div>
+                </div>
+            </div>
+
+            <!-- 每日详情 -->
+            <div class="card mb-8">
+                <div class="border-b border-gray-200 px-6 py-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <h3 class="text-lg font-semibold text-gray-900">每日竞争圈详情</h3>
+                        <div class="flex flex-wrap gap-2" id="dateTabs"></div>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <div id="alertsContainer" class="mb-6 space-y-3"></div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-1 space-y-4">
+                            <div class="bg-blue-50 p-4 rounded-lg">
+                                <div class="text-sm text-blue-600 font-medium">目标酒店价格</div>
+                                <div id="detailTargetPrice" class="text-2xl font-bold text-blue-900 mt-1">-</div>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-lg flex justify-between items-center">
+                                <div>
+                                    <div class="text-sm text-gray-500">市场均价</div>
+                                    <div id="detailMarketAvg" class="text-lg font-semibold text-gray-900">-</div>
+                                </div>
+                                <div id="detailPriceGapBadge" class="px-2 py-1 text-xs font-bold rounded bg-gray-100 text-gray-800">-</div>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <div class="text-sm text-gray-500">竞对均价</div>
+                                <div id="detailCompAvg" class="text-lg font-semibold text-gray-900">-</div>
+                            </div>
+                            <div class="bg-purple-50 p-4 rounded-lg">
+                                <div class="text-sm text-purple-600 font-medium">当前排名</div>
+                                <div id="detailRank" class="text-2xl font-bold text-purple-900 mt-1">-</div>
+                            </div>
+                        </div>
+
+                        <div class="lg:col-span-2">
+                            <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+                                <div>
+                                    <table class="min-w-full divide-y divide-gray-300">
+                                        <thead class="bg-gray-50 sticky top-0">
+                                            <tr>
+                                                <th class="py-3 pl-4 pr-3 text-left text-sm font-semibold text-gray-900">排名</th>
+                                                <th class="px-3 py-3 text-left text-sm font-semibold text-gray-900">酒店名称</th>
+                                                <th class="px-3 py-3 text-right text-sm font-semibold text-gray-900">价格</th>
+                                                <th class="px-3 py-3 text-center text-sm font-semibold text-gray-900">价差</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-gray-200 bg-white" id="rankingTableBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 竞对汇总 -->
+            <div class="card p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">竞对综合表现（均值）</h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead>
+                            <tr>
+                                <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase">酒店</th>
+                                <th class="px-6 py-3 bg-gray-50 text-right text-xs font-medium text-gray-500 uppercase">平均价格</th>
+                                <th class="px-6 py-3 bg-gray-50 text-right text-xs font-medium text-gray-500 uppercase">价格波动</th>
+                                <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase">定位</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="competitorSummaryBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- 加载遮罩 -->
+    <div id="loadingOverlay" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 flex items-center gap-4">
+            <svg class="animate-spin h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span class="text-gray-700">正在处理数据...</span>
+        </div>
+    </div>
+
+    <script>
+    // ==================== 配置 ====================
+    const CONFIG = {
+        SHEET_NAME: '酒店信息',
+        SUPPORTED_FORMATS: ['.xlsx', '.xlsm', '.xls'],
+        PRICE_WAR_THRESHOLDS: { MEDIUM: 3, HIGH: 5 },
+        ANOMALY_BASE: 30,
+        ANOMALY_INCREMENT: 10
+    };
+
+    // ==================== 状态 ====================
+    let appState = {
+        rawData: [],
+        targetHotel: '',
+        analysisResults: [],
+        summary: null,
+        competitorSummary: [],
+        activeDateIndex: 0
+    };
+
+    let priceChartInstance = null;
+    let rankChartInstance = null;
+
+    // ==================== 认证 ====================
+    function checkAuth() {
+        const loggedIn = localStorage.getItem('loggedIn');
+        const loginTime = parseInt(localStorage.getItem('loginTime') || '0');
+        const expiry = 7 * 24 * 60 * 60 * 1000;
+        return loggedIn === 'true' && (Date.now() - loginTime) < expiry;
+    }
+
+    function logout() {
+        localStorage.clear();
+        window.location.href = 'index.html';
+    }
+
+    // ==================== 初始化 ====================
+    document.addEventListener('DOMContentLoaded', function() {
+        if (!checkAuth()) {
+            window.location.href = 'index.html';
+            return;
+        }
+
+        document.getElementById('currentUser').textContent = localStorage.getItem('username') || '用户';
+        document.getElementById('logoutBtn').addEventListener('click', logout);
+        initFileUpload();
+    });
+
+    function initFileUpload() {
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) handleFileUpload(e.dataTransfer.files[0]);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFileUpload(e.target.files[0]);
+        });
+    }
+
+    // ==================== 文件处理 ====================
+    async function handleFileUpload(file) {
+        showLoading(true);
+        hideError();
+
+        try {
+            const ext = '.' + file.name.split('.').pop().toLowerCase();
+            if (!CONFIG.SUPPORTED_FORMATS.includes(ext)) {
+                throw new Error('不支持的文件格式');
+            }
+
+            document.getElementById('uploadedFileName').textContent = file.name;
+            document.getElementById('uploadedFileName').classList.remove('hidden');
+
+            const data = await parseExcelFile(file);
+            console.log('=== 调试信息 ===');
+            console.log('解析到的数据条数:', data.length);
+            console.log('前3条原始数据:', data.slice(0, 3));
+            if (data.length === 0) throw new Error('未找到有效数据');
+
+            appState.rawData = data;
+            appState.targetHotel = data.sort((a, b) => a.rawRow - b.rawRow)[0]?.hotelName || '';
+
+            processData();
+            console.log('处理后的日期列表:', appState.analysisResults.map(r => r.date));
+            renderDashboard();
+        } catch (error) {
+            showError(error.message);
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    function parseExcelFile(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                    
+                    let sheetName = CONFIG.SHEET_NAME;
+                    if (!workbook.SheetNames.includes(sheetName)) {
+                        sheetName = workbook.SheetNames[0];
+                    }
+                    
+                    const sheet = workbook.Sheets[sheetName];
+                    const range = XLSX.utils.decode_range(sheet['!ref']);
+                    const result = [];
+
+                    for (let row = 1; row <= range.e.r; row++) {
+                        const hotelCell = sheet[`A${row + 1}`];
+                        const dateCell = sheet[`B${row + 1}`];
+                        const priceCell = sheet[`E${row + 1}`];
+                        const batchCell = sheet[`H${row + 1}`];
+
+                        const hotelName = getCellValue(hotelCell);
+                        const price = parsePrice(getCellValue(priceCell));
+
+                        if (hotelName && price > 0) {
+                            result.push({
+                                hotelName,
+                                date: formatDate(getCellValue(dateCell)),
+                                price,
+                                batchTime: formatDateTime(getCellValue(batchCell)),
+                                rawRow: row + 1
+                            });
+                        }
+                    }
+                    resolve(result);
+                } catch (err) {
+                    reject(new Error('Excel解析失败: ' + err.message));
+                }
+            };
+            reader.onerror = () => reject(new Error('文件读取失败'));
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    function getCellValue(cell) {
+        if (!cell) return null;
+        // 优先使用原始值(v)而不是格式化值(w)，确保日期数据完整
+        return cell.v || cell.w || null;
+    }
+
+    function formatDate(value) {
+        if (!value) return '';
+        
+        // 如果是Date对象
+        if (value instanceof Date) {
+            return `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}-${String(value.getDate()).padStart(2,'0')}`;
+        }
+        
+        // 如果是Excel数字日期格式（如44929代表2024-11-25）
+        if (typeof value === 'number' && value > 0) {
+            const utc_days = Math.floor(value - 25569);
+            const date = new Date(utc_days * 86400 * 1000);
+            return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+        }
+        
+        const str = String(value).trim();
+        
+        // 匹配：2025年10月21日
+        let m = str.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+        if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+        
+        // 匹配：2025/10/21 或 2025-10-21
+        m = str.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+        if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+        
+        // 匹配不完整日期：11/25 或 11-25（补充当前年份）
+        m = str.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
+        if (m) {
+            const currentYear = new Date().getFullYear();
+            return `${currentYear}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+        }
+        
+        return str;
+    }
+
+    function formatDateTime(value) {
+        if (!value) return '';
+        if (value instanceof Date) {
+            return `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}-${String(value.getDate()).padStart(2,'0')} ${String(value.getHours()).padStart(2,'0')}:${String(value.getMinutes()).padStart(2,'0')}`;
+        }
+        return String(value).trim();
+    }
+
+    function parsePrice(value) {
+        if (!value) return 0;
+        if (typeof value === 'number') return value > 0 ? Math.round(value) : 0;
+        const num = parseFloat(String(value).replace(/[¥￥,，\s]/g, ''));
+        return isNaN(num) || num <= 0 ? 0 : Math.round(num);
+    }
+
+    // ==================== 数据处理 ====================
+    function processData() {
+        const dates = [...new Set(appState.rawData.map(d => d.date).filter(Boolean))].sort();
+        
+        appState.analysisResults = dates.map(date => analyzeDateData(date)).filter(r => r);
+        appState.summary = calculateSummary();
+        appState.competitorSummary = calculateCompetitorSummary();
+        appState.activeDateIndex = 0;
+    }
+
+    function analyzeDateData(date) {
+        const dateData = appState.rawData.filter(d => d.date === date);
+        if (dateData.length === 0) return null;
+
+        const batches = [...new Set(dateData.map(d => d.batchTime).filter(Boolean))].sort();
+        const currentBatch = batches[batches.length - 1];
+        const prevBatch = batches.length > 1 ? batches[batches.length - 2] : null;
+
+        const currentData = dateData.filter(d => d.batchTime === currentBatch);
+        const prevData = prevBatch ? dateData.filter(d => d.batchTime === prevBatch) : [];
+
+        const stats = calculateStats(currentData);
+        const changes = prevData.length > 0 ? calculateChanges(currentData, prevData) : null;
+        const anomaly = changes ? detectAnomalies(changes, stats.targetPrice) : null;
+        const priceWar = changes ? detectPriceWar(changes) : null;
+
+        return {
+            date, currentBatch, prevBatch, batches, stats, changes,
+            anomalyDetection: anomaly,
+            priceWarDetection: priceWar,
+            competitors: currentData.map(d => ({
+                name: d.hotelName,
+                price: d.price,
+                isTarget: d.hotelName === appState.targetHotel
+            })).sort((a, b) => a.price - b.price)
+        };
+    }
+
+    function calculateStats(data) {
+        const prices = data.map(d => d.price).filter(p => p > 0);
+        const targetRecord = data.find(d => d.hotelName === appState.targetHotel);
+        const targetPrice = targetRecord?.price || 0;
+        const compPrices = data.filter(d => d.hotelName !== appState.targetHotel && d.price > 0).map(d => d.price);
+
+        const marketAvg = prices.length > 0 ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) : 0;
+        const competitorAvg = compPrices.length > 0 ? Math.round(compPrices.reduce((a, b) => a + b, 0) / compPrices.length) : 0;
+        const ranking = prices.filter(p => p < targetPrice).length + 1;
+
+        return { targetPrice, marketAvg, competitorAvg, priceAdvantage: competitorAvg - targetPrice, ranking, totalHotels: prices.length };
+    }
+
+    function calculateChanges(currentData, prevData) {
+        const currentMap = new Map(currentData.map(d => [d.hotelName, d.price]));
+        const prevMap = new Map(prevData.map(d => [d.hotelName, d.price]));
+
+        const decreased = [], increased = [], stable = [], missing = [];
+        let targetChange = null;
+
+        currentData.forEach(d => {
+            const prev = prevMap.get(d.hotelName);
+            if (prev === undefined) return;
+            const change = d.price - prev;
+            const info = { name: d.hotelName, prevPrice: prev, currentPrice: d.price, change, isTarget: d.hotelName === appState.targetHotel };
+            
+            if (d.hotelName === appState.targetHotel) targetChange = info;
+            if (change < 0) decreased.push(info);
+            else if (change > 0) increased.push(info);
+            else stable.push(info);
+        });
+
+        prevData.forEach(d => {
+            if (!currentMap.has(d.hotelName)) {
+                missing.push({ name: d.hotelName, prevPrice: d.price, isTarget: d.hotelName === appState.targetHotel });
+            }
+        });
+
+        return { targetChange, decreased: decreased.sort((a,b) => a.change - b.change), increased: increased.sort((a,b) => b.change - a.change), stable, missing };
+    }
+
+    function detectAnomalies(changes, targetPrice) {
+        let level = targetPrice >= 100 ? Math.floor((targetPrice - 1) / 100) + 1 : 1;
+        if (level > 10) level = 10;
+        const mediumThreshold = CONFIG.ANOMALY_BASE + (level - 1) * CONFIG.ANOMALY_INCREMENT;
+        const highThreshold = mediumThreshold * 2;
+
+        const highRisk = [], mediumRisk = [];
+
+        [...changes.decreased, ...changes.increased].filter(d => !d.isTarget).forEach(d => {
+            const abs = Math.abs(d.change);
+            const type = d.change < 0 ? 'decrease' : 'increase';
+            const label = d.change < 0 ? (abs >= highThreshold ? `价格暴跌${abs}元` : `价格下降${abs}元`) : (abs >= highThreshold ? `价格暴涨${abs}元` : `价格上涨${abs}元`);
+            
+            if (abs >= highThreshold) highRisk.push({ ...d, type, label });
+            else if (abs >= mediumThreshold) mediumRisk.push({ ...d, type, label });
+        });
+
+        return { hasAnomalies: highRisk.length > 0 || mediumRisk.length > 0, highRisk, mediumRisk };
+    }
+
+    function detectPriceWar(changes) {
+        const count = changes.decreased.filter(d => !d.isTarget).length;
+        if (count >= CONFIG.PRICE_WAR_THRESHOLDS.HIGH) {
+            return { hasPriceWar: true, riskLevel: 'high', competitorCount: count, message: `${count}家竞品集体降价，建议制定应对策略` };
+        } else if (count >= CONFIG.PRICE_WAR_THRESHOLDS.MEDIUM) {
+            return { hasPriceWar: true, riskLevel: 'medium', competitorCount: count, message: `${count}家竞品同时降价，市场竞争加剧` };
+        }
+        return { hasPriceWar: false };
+    }
+
+    function calculateSummary() {
+        const results = appState.analysisResults.filter(r => r && r.stats);
+        if (results.length === 0) return null;
+
+        const avgPrice = Math.round(results.reduce((s, r) => s + r.stats.targetPrice, 0) / results.length);
+        const avgMarketPrice = Math.round(results.reduce((s, r) => s + r.stats.marketAvg, 0) / results.length);
+        const avgRanking = (results.reduce((s, r) => s + r.stats.ranking, 0) / results.length).toFixed(1);
+        const rankings = results.map(r => r.stats.ranking);
+        const daysAbove = results.filter(r => r.stats.targetPrice > r.stats.marketAvg).length;
+        const daysBelow = results.length - daysAbove;
+
+        let competitiveness = '中等';
+        if (daysBelow > daysAbove * 2) competitiveness = '强';
+        else if (daysAbove > daysBelow * 2) competitiveness = '弱';
+
+        return {
+            avgPrice, avgMarketPrice, avgRanking: parseFloat(avgRanking),
+            bestRank: Math.min(...rankings), worstRank: Math.max(...rankings),
+            daysAboveAvg: daysAbove, daysBelowAvg: daysBelow, competitiveness, totalDays: results.length,
+            dateRange: { start: results[0].date, end: results[results.length - 1].date }
+        };
+    }
+
+    function calculateCompetitorSummary() {
+        const stats = new Map();
+        appState.analysisResults.filter(r => r && r.competitors).forEach(r => {
+            r.competitors.forEach(c => {
+                if (!stats.has(c.name)) stats.set(c.name, { prices: [], isTarget: c.isTarget });
+                stats.get(c.name).prices.push(c.price);
+            });
+        });
+
+        return [...stats.entries()].map(([name, s]) => {
+            const avg = Math.round(s.prices.reduce((a, b) => a + b, 0) / s.prices.length);
+            const range = Math.max(...s.prices) - Math.min(...s.prices);
+            let tag = 'core';
+            if (s.isTarget) tag = 'target';
+            else if (avg < 250) tag = 'budget';
+            else if (avg > 400) tag = 'luxury';
+            return { name, avgPrice: avg, priceRange: range, tag, isTarget: s.isTarget };
+        }).sort((a, b) => a.avgPrice - b.avgPrice);
+    }
+
+    // ==================== 渲染 ====================
+    function renderDashboard() {
+        document.getElementById('uploadSection').classList.add('hidden');
+        document.getElementById('dataSection').classList.remove('hidden');
+
+        document.getElementById('targetHotelName').textContent = appState.targetHotel || '-';
+        if (appState.analysisResults.length > 0) {
+            document.getElementById('dataTime').textContent = appState.analysisResults[appState.analysisResults.length - 1].currentBatch || '-';
+        }
+
+        renderSummaryCards();
+        renderCharts();
+        renderDateTabs();
+        renderDateDetail(0);
+        renderCompetitorTable();
+    }
+
+    function renderSummaryCards() {
+        const s = appState.summary;
+        if (!s) return;
+
+        document.getElementById('avgPrice').textContent = `¥${s.avgPrice}`;
+        document.getElementById('marketPrice').textContent = `市场均价: ¥${s.avgMarketPrice}`;
+        document.getElementById('avgRank').textContent = s.avgRanking;
+        document.getElementById('rankRange').textContent = `最高: ${s.bestRank} | 最低: ${s.worstRank}`;
+        document.getElementById('competitiveness').textContent = s.competitiveness;
+        document.getElementById('competitiveness').className = `text-2xl font-bold ${s.competitiveness === '强' ? 'text-green-600' : s.competitiveness === '弱' ? 'text-red-600' : 'text-yellow-600'}`;
+        document.getElementById('competitiveDetail').textContent = `${s.daysBelowAvg}天低于均价，${s.daysAboveAvg}天高于均价`;
+        document.getElementById('dateRange').textContent = `${s.dateRange.start.slice(5)} - ${s.dateRange.end.slice(5)}`;
+        document.getElementById('totalDays').textContent = `共计 ${s.totalDays} 天数据`;
+    }
+
+    function renderCharts() {
+        const labels = appState.analysisResults.map(r => r.date.slice(5));
+        const targetPrices = appState.analysisResults.map(r => r.stats?.targetPrice || 0);
+        const marketAvgs = appState.analysisResults.map(r => r.stats?.marketAvg || 0);
+        const compAvgs = appState.analysisResults.map(r => r.stats?.competitorAvg || 0);
+        const rankings = appState.analysisResults.map(r => r.stats?.ranking || 0);
+
+        if (priceChartInstance) priceChartInstance.destroy();
+        priceChartInstance = new Chart(document.getElementById('priceChart'), {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    { label: '我的酒店', data: targetPrices, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: 3, pointRadius: 5, fill: true, tension: 0.4 },
+                    { label: '市场均价', data: marketAvgs, borderColor: '#9ca3af', borderDash: [5,5], borderWidth: 2, pointRadius: 3, tension: 0.4 },
+                    { label: '竞对均价', data: compAvgs, borderColor: '#f59e0b', borderWidth: 2, pointRadius: 3, tension: 0.4 }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: false } } }
+        });
+
+        const maxRank = Math.max(...appState.analysisResults.map(r => r.stats?.totalHotels || 10)) + 2;
+        if (rankChartInstance) rankChartInstance.destroy();
+        rankChartInstance = new Chart(document.getElementById('rankChart'), {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{ label: '排名 (越低越好)', data: rankings, borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.1)', borderWidth: 3, pointRadius: 5, fill: true, tension: 0.3 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { reverse: true, min: 1, max: maxRank } } }
+        });
+    }
+
+    function renderDateTabs() {
+        // 调试：打印日期数据
+        console.log('日期数据:', appState.analysisResults.map(r => r.date));
+        
+        document.getElementById('dateTabs').innerHTML = appState.analysisResults.map((r, i) => {
+            // 确保日期格式正确，处理各种可能的格式
+            let displayDate = r.date || '';
+            if (displayDate.length >= 10 && displayDate.includes('-')) {
+                // 格式: YYYY-MM-DD -> MM-DD
+                displayDate = displayDate.slice(5, 10);
+            } else if (displayDate.length >= 10 && displayDate.includes('/')) {
+                // 格式: YYYY/MM/DD -> MM/DD
+                displayDate = displayDate.slice(5, 10);
+            } else if (displayDate.match(/^\d{1,2}[\/\-]\d{1,2}$/)) {
+                // 格式: MM/DD 或 MM-DD，直接使用
+                displayDate = displayDate;
+            } else {
+                // 其他格式，尝试截取
+                displayDate = displayDate.slice(5) || displayDate;
+            }
+            
+            return `<button onclick="selectDate(${i})" id="tab-${i}" class="px-3 py-2 text-sm font-medium rounded-md ${i === appState.activeDateIndex ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}">${displayDate}</button>`;
+        }).join('');
+    }
+
+    function selectDate(index) {
+        appState.activeDateIndex = index;
+        document.querySelectorAll('[id^="tab-"]').forEach((el, i) => {
+            el.className = `px-3 py-2 text-sm font-medium rounded-md ${i === index ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`;
+        });
+        renderDateDetail(index);
+    }
+
+    function renderDateDetail(index) {
+        const r = appState.analysisResults[index];
+        if (!r) return;
+
+        document.getElementById('detailTargetPrice').textContent = `¥${r.stats.targetPrice}`;
+        document.getElementById('detailMarketAvg').textContent = `¥${r.stats.marketAvg}`;
+        document.getElementById('detailCompAvg').textContent = `¥${r.stats.competitorAvg}`;
+        document.getElementById('detailRank').textContent = `第 ${r.stats.ranking} / ${r.stats.totalHotels} 位`;
+
+        const gap = r.stats.targetPrice - r.stats.marketAvg;
+        const badge = document.getElementById('detailPriceGapBadge');
+        if (gap < 0) { badge.className = 'px-2 py-1 text-xs font-bold rounded bg-green-100 text-green-800'; badge.textContent = `低 ${Math.abs(gap)}元`; }
+        else if (gap > 0) { badge.className = 'px-2 py-1 text-xs font-bold rounded bg-red-100 text-red-800'; badge.textContent = `高 ${gap}元`; }
+        else { badge.className = 'px-2 py-1 text-xs font-bold rounded bg-gray-100 text-gray-800'; badge.textContent = '持平'; }
+
+        renderAlerts(r);
+        renderRankingTable(r);
+    }
+
+    function renderAlerts(r) {
+        let html = '';
+        if (r.priceWarDetection?.hasPriceWar) {
+            const pw = r.priceWarDetection;
+            const isHigh = pw.riskLevel === 'high';
+            html += `<div class="p-4 rounded-lg ${isHigh ? 'bg-red-50 border border-red-200' : 'bg-orange-50 border border-orange-200'}">
+                <div class="flex items-center gap-2"><span class="text-lg">${isHigh ? '🔴' : '🟡'}</span>
+                <span class="font-semibold ${isHigh ? 'text-red-800' : 'text-orange-800'}">${isHigh ? '【高风险】价格战预警' : '【中风险】价格竞争提示'}</span></div>
+                <p class="mt-1 text-sm ${isHigh ? 'text-red-600' : 'text-orange-600'}">${pw.message}</p></div>`;
+        }
+        if (r.anomalyDetection?.hasAnomalies) {
+            const ad = r.anomalyDetection;
+            html += `<div class="p-4 rounded-lg bg-yellow-50 border border-yellow-200"><div class="flex items-center gap-2"><span class="text-lg">⚠️</span><span class="font-semibold text-yellow-800">竞品价格异常预警</span></div><div class="mt-2 space-y-1 text-sm">`;
+            if (ad.highRisk.length > 0) { html += `<div class="text-red-600 font-medium">【高风险】${ad.highRisk.length}家</div>`; ad.highRisk.forEach(h => html += `<div class="text-red-600 ml-4">▸ ${h.name}: ${h.label}</div>`); }
+            if (ad.mediumRisk.length > 0) { html += `<div class="text-orange-600 font-medium mt-1">【中风险】${ad.mediumRisk.length}家</div>`; ad.mediumRisk.forEach(m => html += `<div class="text-orange-600 ml-4">▸ ${m.name}: ${m.label}</div>`); }
+            html += '</div></div>';
+        }
+        if (r.changes) {
+            const c = r.changes;
+            html += `<div class="p-4 rounded-lg bg-gray-50 border border-gray-200"><div class="font-semibold text-gray-800 mb-2">价格变化统计</div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                <div class="text-green-600"><span class="font-medium">降价:</span> ${c.decreased.length}家</div>
+                <div class="text-red-600"><span class="font-medium">涨价:</span> ${c.increased.length}家</div>
+                <div class="text-gray-600"><span class="font-medium">持平:</span> ${c.stable.length}家</div>
+                <div class="text-orange-600"><span class="font-medium">缺失:</span> ${c.missing.length}家</div></div></div>`;
+        }
+        document.getElementById('alertsContainer').innerHTML = html || '<div class="text-gray-500 text-sm">暂无预警信息</div>';
+    }
+
+    function renderRankingTable(r) {
+        const changesMap = new Map();
+        if (r.changes) [...r.changes.decreased, ...r.changes.increased, ...r.changes.stable].forEach(c => changesMap.set(c.name, c.change));
+
+        document.getElementById('rankingTableBody').innerHTML = r.competitors.map((c, i) => {
+            const rank = i + 1;
+            const change = changesMap.get(c.name);
+            const diff = c.price - r.stats.targetPrice;
+            let diffText = '-', diffClass = 'text-gray-400';
+            if (!c.isTarget) {
+                if (diff > 0) { diffText = `+${diff}`; diffClass = 'text-red-600'; }
+                else if (diff < 0) { diffText = `${diff}`; diffClass = 'text-green-600'; }
+            }
+            let priceClass = '', changeIndicator = '';
+            if (change !== undefined && change !== 0) {
+                if (change < 0) { priceClass = 'text-green-600'; changeIndicator = `<span class="text-xs ml-1">(${change})</span>`; }
+                else { priceClass = 'text-red-600'; changeIndicator = `<span class="text-xs ml-1">(+${change})</span>`; }
+            }
+            const rankDisplay = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+
+            return `<tr class="${c.isTarget ? 'bg-yellow-50' : ''}">
+                <td class="py-3 pl-4 pr-3 text-sm font-medium text-gray-900">${rankDisplay}</td>
+                <td class="px-3 py-3 text-sm"><div class="font-medium ${c.isTarget ? 'text-blue-900 font-bold' : 'text-gray-900'}">${c.name}${c.isTarget ? '<span class="ml-2 text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">本店</span>' : ''}</div></td>
+                <td class="px-3 py-3 text-sm text-right font-semibold ${priceClass || 'text-gray-900'}">¥${c.price}${changeIndicator}</td>
+                <td class="px-3 py-3 text-sm text-center font-medium ${diffClass}">${c.isTarget ? '<span class="text-blue-600">当前</span>' : diffText}</td></tr>`;
+        }).join('');
+    }
+
+    function renderCompetitorTable() {
+        const tagMap = { target: '<span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">本酒店</span>', budget: '<span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">经济型</span>', luxury: '<span class="px-2 py-1 bg-red-100 text-red-800 rounded text-xs">高端</span>', core: '<span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">核心竞对</span>' };
+        document.getElementById('competitorSummaryBody').innerHTML = appState.competitorSummary.map(c => `
+            <tr class="${c.isTarget ? 'bg-yellow-50' : ''}">
+                <td class="px-6 py-4 text-sm font-medium text-gray-900">${c.name}</td>
+                <td class="px-6 py-4 text-sm text-right text-gray-500">¥${c.avgPrice}</td>
+                <td class="px-6 py-4 text-sm text-right text-gray-500">${c.priceRange === 0 ? '稳定' : '¥' + c.priceRange}</td>
+                <td class="px-6 py-4 text-sm">${tagMap[c.tag]}</td></tr>
+        `).join('');
+    }
+
+    // ==================== 工具函数 ====================
+    function showLoading(show) { document.getElementById('loadingOverlay').classList.toggle('hidden', !show); }
+    function showError(msg) { const el = document.getElementById('errorMessage'); el.textContent = msg; el.classList.remove('hidden'); }
+    function hideError() { document.getElementById('errorMessage').classList.add('hidden'); }
+
+    function resetUpload() {
+        if (priceChartInstance) priceChartInstance.destroy();
+        if (rankChartInstance) rankChartInstance.destroy();
+        appState = { rawData: [], targetHotel: '', analysisResults: [], summary: null, competitorSummary: [], activeDateIndex: 0 };
+        document.getElementById('uploadSection').classList.remove('hidden');
+        document.getElementById('dataSection').classList.add('hidden');
+        document.getElementById('uploadedFileName').classList.add('hidden');
+        document.getElementById('fileInput').value = '';
+    }
+    </script>
+</body>
+</html>

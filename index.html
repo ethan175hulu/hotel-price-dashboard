@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>酒店竞对监控系统 - 登录</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        .login-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+<body class="min-h-screen login-bg flex items-center justify-center p-4">
+    
+    <div class="glass-card rounded-2xl shadow-2xl w-full max-w-md p-8">
+        <!-- Logo -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl mb-4">
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+            </div>
+            <h1 class="text-2xl font-bold text-gray-900">酒店竞对监控系统</h1>
+            <p class="text-gray-500 mt-2">价格分析 · 竞争预警 · 决策支持</p>
+        </div>
+
+        <!-- Login Form -->
+        <form id="loginForm" class="space-y-6">
+            <div>
+                <label for="username" class="block text-sm font-medium text-gray-700 mb-2">用户名</label>
+                <input 
+                    type="text" 
+                    id="username" 
+                    name="username"
+                    required
+                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+                    placeholder="请输入用户名"
+                >
+            </div>
+
+            <div>
+                <label for="password" class="block text-sm font-medium text-gray-700 mb-2">密码</label>
+                <input 
+                    type="password" 
+                    id="password" 
+                    name="password"
+                    required
+                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+                    placeholder="请输入密码"
+                >
+            </div>
+
+            <!-- Error Message -->
+            <div id="errorMessage" class="hidden bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
+                用户名或密码错误
+            </div>
+
+            <button 
+                type="submit"
+                class="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-3 px-4 rounded-lg font-medium hover:opacity-90 transition-opacity focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+                登 录
+            </button>
+        </form>
+
+        <!-- Footer -->
+        <p class="text-center text-gray-400 text-sm mt-8">
+            内部系统 · 仅限授权人员使用
+        </p>
+    </div>
+
+    <script>
+        // 用户配置
+        const USERS = {
+            'admin': 'hotel2024',
+            'user1': 'pass123',
+            'user2': 'pass456',
+            'user3': 'pass789'
+        };
+        
+        const LOGIN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
+
+        // 检查登录状态
+        function checkAuth() {
+            const loggedIn = localStorage.getItem('loggedIn');
+            const loginTime = parseInt(localStorage.getItem('loginTime') || '0');
+            return loggedIn === 'true' && (Date.now() - loginTime) < LOGIN_EXPIRY_MS;
+        }
+
+        // 如果已登录，直接跳转
+        if (checkAuth()) {
+            window.location.href = 'dashboard.html';
+        }
+
+        // 登录表单处理
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorEl = document.getElementById('errorMessage');
+            
+            if (USERS[username] === password) {
+                localStorage.setItem('loggedIn', 'true');
+                localStorage.setItem('username', username);
+                localStorage.setItem('loginTime', Date.now().toString());
+                window.location.href = 'dashboard.html';
+            } else {
+                errorEl.classList.remove('hidden');
+                setTimeout(() => errorEl.classList.add('hidden'), 3000);
+            }
+        });
+    </script>
+</body>
+</html>
