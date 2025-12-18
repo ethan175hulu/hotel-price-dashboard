@@ -326,7 +326,8 @@
             reader.onload = function(e) {
                 try {
                     const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                    // 不使用cellDates，保留原始数字格式，避免时区问题
+                    const workbook = XLSX.read(data, { type: 'array', cellDates: false });
                     
                     let sheetName = CONFIG.SHEET_NAME;
                     if (!workbook.SheetNames.includes(sheetName)) {
@@ -375,16 +376,17 @@
     function formatDate(value) {
         if (!value) return '';
         
-        // 如果是Date对象
+        // 如果是Date对象 - 使用UTC方法避免时区问题
         if (value instanceof Date) {
-            return `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}-${String(value.getDate()).padStart(2,'0')}`;
+            return `${value.getUTCFullYear()}-${String(value.getUTCMonth()+1).padStart(2,'0')}-${String(value.getUTCDate()).padStart(2,'0')}`;
         }
         
         // 如果是Excel数字日期格式（如44929代表2024-11-25）
         if (typeof value === 'number' && value > 0) {
             const utc_days = Math.floor(value - 25569);
             const date = new Date(utc_days * 86400 * 1000);
-            return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+            // 使用 UTC 方法避免时区转换问题
+            return `${date.getUTCFullYear()}-${String(date.getUTCMonth()+1).padStart(2,'0')}-${String(date.getUTCDate()).padStart(2,'0')}`;
         }
         
         const str = String(value).trim();
@@ -410,7 +412,8 @@
     function formatDateTime(value) {
         if (!value) return '';
         if (value instanceof Date) {
-            return `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}-${String(value.getDate()).padStart(2,'0')} ${String(value.getHours()).padStart(2,'0')}:${String(value.getMinutes()).padStart(2,'0')}`;
+            // 使用UTC方法避免时区问题
+            return `${value.getUTCFullYear()}-${String(value.getUTCMonth()+1).padStart(2,'0')}-${String(value.getUTCDate()).padStart(2,'0')} ${String(value.getUTCHours()).padStart(2,'0')}:${String(value.getUTCMinutes()).padStart(2,'0')}`;
         }
         return String(value).trim();
     }
