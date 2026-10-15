@@ -1,4 +1,15 @@
-# 酒店竞对监控Web系统
+# 竞对价格看板
+
+## 项目备忘
+
+这是一个酒店竞对价格分析的静态网页工具：把已经整理好的酒店价格 Excel 上传后，查看本店与竞对的价格差、排名、趋势和异常信号。
+
+- **适合什么时候用**：已有采集结果或价格表，想快速查看商圈竞对价格变化。
+- **项目边界**：本仓库提供上传分析看板，不包含自动采集与完整 OTA 后台运营系统。
+- **主要入口**：`index.html` 为登录入口，`dashboard.html` 为分析看板。
+- **原仓库名**：`-v2.0.1`。
+- **仓库名称**：`hotel-price-dashboard`。
+- **在线入口**：[打开竞对价格看板](https://ethan175hulu.github.io/hotel-price-dashboard/)。
 
 一个轻量级的酒店竞对价格监控分析系统，纯前端实现，支持Excel数据上传和可视化分析。
 
@@ -31,7 +42,7 @@ Excel文件需包含名为 `酒店信息` 的Sheet，列定义如下：
 ## 项目结构
 
 ```
-hotel-competitor-web/
+hotel-price-dashboard/
 ├── index.html              # 登录页
 ├── dashboard.html          # 主看板页
 ├── README.md
